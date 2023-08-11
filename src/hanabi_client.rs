@@ -5,6 +5,7 @@ use crate::server_command::*;
 
 #[derive(Debug)]
 pub struct HanabiClient {}
+// TODO thoughts: store userID, current table
 
 #[async_trait]
 impl ezsockets::ClientExt for HanabiClient {
@@ -28,7 +29,9 @@ impl ezsockets::ClientExt for HanabiClient {
         &mut self,
         _bytes: Vec<u8>,
     ) -> Result<(), ezsockets::Error> {
-        Err(anyhow!("Received binary message from hanab.live server. This should never happen"))?
+        Err(anyhow!(
+            "received binary message from server; should never happen"
+        ))?
     }
 
     async fn on_call(

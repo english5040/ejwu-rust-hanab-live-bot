@@ -1,4 +1,7 @@
+mod client_command;
+mod deserialize_space_separated_command;
 mod hanabi_client;
+mod serialize_command;
 mod server_command;
 
 use std::sync::Arc;
@@ -48,8 +51,9 @@ async fn main() -> anyhow::Result<()> {
     // Run the client
     let config = ezsockets::ClientConfig::new("wss://hanab.live/ws")
         .header(http::header::COOKIE, cookie);
-    // TODO ezsockets is a really small hobby package. Maybe pull directly from
-    // Github so new fixes are brought in immediately.
+    // TODO ezsockets is a really small hobby package.
+    // Maybe use a different websocket client library.
+    // Maybe pull directly from Github so new fixes are brought in immediately.
     let (_handle, future) =
         ezsockets::connect(|_handle| HanabiClient {}, config).await;
     future.await.map_err(|e| anyhow!(e))?;

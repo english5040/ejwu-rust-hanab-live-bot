@@ -1,21 +1,23 @@
-mod deserialize_space_separated_command;
+use serde::{Deserialize, Serialize};
 
-use serde::Deserialize;
-
-pub use deserialize_space_separated_command::*;
+pub use crate::deserialize_space_separated_command::*;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ServerCommand {
     // Server messages
-    Warning(serde_json::Value),
-    Error(serde_json::Value),
+    Warning { warning: String },
+    Error { error: String },
 
     // --- Lobby
+    // General information
     Welcome(WelcomeData),
+    Name { name: String },
     // Tables
     Table(TableData),
     TableList(Vec<TableData>),
+    TableStart(SingleTableID),
+    TableProgress(SingleTableID),
     TableGone(SingleTableID),
     // Users
     User(UserData),
@@ -28,8 +30,9 @@ pub enum ServerCommand {
     ChatList,
     /* ChatList { list: Vec<ChatData> }, */
     ChatTyping,
-    // Actions
-    TableStart(SingleTableID),
+    // Actions on tables
+    Joined,
+    Left,
 
     // --- In game
     Init,
@@ -41,7 +44,7 @@ pub enum ServerCommand {
     NoteListPlayer,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct UserID(i32);
 
@@ -51,7 +54,7 @@ pub struct SingleUserID {
     user_id: UserID,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct TableID(i32);
 
@@ -62,9 +65,11 @@ pub struct SingleTableID {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WelcomeData {
     #[serde(rename = "userID")]
     user_id: UserID,
+    random_table_name: String,
 }
 
 #[derive(Debug, Deserialize)]
