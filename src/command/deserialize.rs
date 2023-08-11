@@ -11,7 +11,7 @@ use thiserror::Error;
 
 pub fn deserialize_command_from_str<'de, T>(
     s: &'de str,
-) -> Result<T, SpaceSeparatedCommandError>
+) -> Result<T, DeserializeCommandError>
 where
     T: Deserialize<'de>,
 {
@@ -21,7 +21,7 @@ where
 }
 
 #[derive(Debug, Error)]
-pub enum SpaceSeparatedCommandError {
+pub enum DeserializeCommandError {
     #[error("{0}")]
     Custom(String),
     #[error("no space in command")]
@@ -30,12 +30,12 @@ pub enum SpaceSeparatedCommandError {
     DeserializeDataError(#[from] serde_json::Error),
 }
 
-impl de::Error for SpaceSeparatedCommandError {
+impl de::Error for DeserializeCommandError {
     fn custom<T>(msg: T) -> Self
     where
         T: Display,
     {
-        SpaceSeparatedCommandError::Custom(msg.to_string())
+        DeserializeCommandError::Custom(msg.to_string())
     }
 }
 
@@ -44,7 +44,7 @@ struct SpaceSeparatedCommandEnumAccess<'de> {
 }
 
 impl<'de> de::EnumAccess<'de> for SpaceSeparatedCommandEnumAccess<'de> {
-    type Error = SpaceSeparatedCommandError;
+    type Error = DeserializeCommandError;
 
     type Variant = SpaceSeparatedCommandVariantAccess<'de>;
 
@@ -58,7 +58,7 @@ impl<'de> de::EnumAccess<'de> for SpaceSeparatedCommandEnumAccess<'de> {
         // TODO are there any commands that return empty data? There would be no
         // space in the command in that case
         match self.s.split_once(' ') {
-            None => Err(SpaceSeparatedCommandError::NoSpace),
+            None => Err(DeserializeCommandError::NoSpace),
             Some((command, data)) => {
                 let command_deserializer: de::value::StrDeserializer<
                     '_,
@@ -76,7 +76,7 @@ struct SpaceSeparatedCommandVariantAccess<'de> {
 }
 
 impl<'de> de::VariantAccess<'de> for SpaceSeparatedCommandVariantAccess<'de> {
-    type Error = SpaceSeparatedCommandError;
+    type Error = DeserializeCommandError;
 
     fn unit_variant(self) -> Result<(), Self::Error> {
         Ok(()) // data is completely ignored
