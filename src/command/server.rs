@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub use crate::deserialize_space_separated_command::*;
+pub use super::{TableID, UserID};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -44,19 +44,11 @@ pub enum ServerCommand {
     NoteListPlayer,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct UserID(i32);
-
 #[derive(Debug, Deserialize)]
 pub struct SingleUserID {
     #[serde(rename = "userID")]
     user_id: UserID,
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct TableID(i32);
 
 #[derive(Debug, Deserialize)]
 pub struct SingleTableID {

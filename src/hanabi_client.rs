@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 
-use crate::server_command::*;
+use crate::command::*;
 
 #[derive(Debug)]
 pub struct HanabiClient {}
@@ -13,7 +13,7 @@ impl ezsockets::ClientExt for HanabiClient {
 
     async fn on_text(&mut self, text: String) -> Result<(), ezsockets::Error> {
         let server_command: Result<ServerCommand, _> =
-            deserialize_space_separated_command_from_str(&text);
+            deserialize_command_from_str(&text);
         match server_command {
             Ok(server_command) => {
                 tracing::info!("received command: {server_command:?}");

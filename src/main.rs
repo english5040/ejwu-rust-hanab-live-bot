@@ -1,8 +1,5 @@
-mod client_command;
-mod deserialize_space_separated_command;
+mod command;
 mod hanabi_client;
-mod serialize_command;
-mod server_command;
 
 use std::sync::Arc;
 

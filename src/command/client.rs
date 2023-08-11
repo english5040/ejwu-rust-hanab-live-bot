@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::server_command::TableID; // TODO move these into a file "command.rs"
+use super::{TableID, UserID};
 
 // --- Lobby
 

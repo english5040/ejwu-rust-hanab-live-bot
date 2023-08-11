@@ -9,7 +9,7 @@ use serde::{
 };
 use thiserror::Error;
 
-pub fn deserialize_space_separated_command_from_str<'de, T>(
+pub fn deserialize_command_from_str<'de, T>(
     s: &'de str,
 ) -> Result<T, SpaceSeparatedCommandError>
 where
