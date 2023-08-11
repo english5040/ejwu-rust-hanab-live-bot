@@ -19,7 +19,7 @@ impl ezsockets::ClientExt for HanabiClient {
                 tracing::info!("received command: {server_command:?}");
             }
             Err(e) => {
-                tracing::error!("error {e} when parsing message: {text}");
+                tracing::error!("error {e} parsing server message: {text}");
             }
         }
         Ok(())

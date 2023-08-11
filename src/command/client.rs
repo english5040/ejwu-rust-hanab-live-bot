@@ -18,17 +18,31 @@ pub struct TableJoin {
     table_id: TableID,
 }
 #[derive(Debug, Serialize)]
-pub struct TableLeave {}
+pub struct TableLeave {
+    #[serde(rename = "tableID")]
+    table_id: TableID,
+}
 #[derive(Debug, Serialize)]
-pub struct TableUnattend {}
+pub struct TableUnattend {
+    #[serde(rename = "tableID")]
+    table_id: TableID,
+}
 #[derive(Debug, Serialize)]
-pub struct TableReattend {}
+pub struct TableReattend {
+    #[serde(rename = "tableID")]
+    table_id: TableID,
+}
 #[derive(Debug, Serialize)]
 pub struct TableSetVariant {}
 #[derive(Debug, Serialize)]
 pub struct TableSetLeader {}
 #[derive(Debug, Serialize)]
-pub struct TableStart {}
+pub struct TableStart {
+    #[serde(rename = "tableID")]
+    table_id: TableID,
+    // TODO necessary?
+    // replay: bool,
+}
 #[derive(Debug, Serialize)]
 pub struct TableVoteForTermination {}
 #[derive(Debug, Serialize)]
