@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 
-use super::{Command, TableID, UserID};
+use super::*;
 
 // --- Lobby
 
@@ -16,8 +16,8 @@ pub struct TableCreate {
 }
 impl Default for TableCreate {
     fn default() -> Self {
-        TableCreate {
-            name: Default::default(),
+        Self {
+            name: None,
             max_players: 6,
         }
     }

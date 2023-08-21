@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::{Command, TableID, UserID};
+use super::*;
 
 // Server messages
 
@@ -52,6 +52,7 @@ impl Command for Name {
 #[serde(rename_all = "camelCase")]
 pub struct Table {
     pub id: TableID,
+    pub name: String,
 }
 impl Command for Table {
     const NAME: &'static str = "table";
@@ -101,6 +102,12 @@ impl Command for TableGone {
 pub struct User {
     #[serde(rename = "userID")]
     pub user_id: UserID,
+    pub name: String,
+    // TODO make this an enum
+    pub status: i32,
+    // TODO 0 is used as no TableID, so convert to Option<TableID>
+    #[serde(rename = "tableID")]
+    pub table_id: TableID,
 }
 impl Command for User {
     const NAME: &'static str = "user";
