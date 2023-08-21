@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde_with::skip_serializing_none;
 
-use super::*;
+use super::{Command, TableID};
 
 // --- Lobby
 

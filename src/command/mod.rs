@@ -20,27 +20,34 @@ pub trait Command {
     }
 }
 
-pub enum CommandParser<'a, O> {
+pub enum Parse<'a, O> {
     Break(eyre::Result<O>),
     Continue(&'a str, &'a str),
 }
 
-impl<'a, O> CommandParser<'a, O> {
+impl<'a, O> Parse<'a, O> {
     pub fn from_str(s: &'a str) -> Self {
         match s.split_once(' ') {
             Some((name, data)) => Self::Continue(name, data),
             None => Self::Break(Err(eyre!("error parsing command: no space"))),
         }
     }
-    pub fn parse_command<T, F>(self, f: F) -> Self
+    pub fn handle_command<T, F>(self, f: F) -> Self
     where
         T: Command + Deserialize<'a>,
         F: FnOnce(T) -> O,
     {
+        self.handle_command_result(|x| Ok(f(x)))
+    }
+    pub fn handle_command_result<T, F>(self, f: F) -> Self
+    where
+        T: Command + Deserialize<'a>,
+        F: FnOnce(T) -> eyre::Result<O>,
+    {
         match self {
             Self::Continue(name, data) if name == T::NAME => {
                 let result = match serde_json::from_str(data) {
-                    Ok(command) => Ok(f(command)),
+                    Ok(command) => f(command),
                     Err(e) => Err(e.into()),
                 };
                 Self::Break(result)
@@ -48,7 +55,7 @@ impl<'a, O> CommandParser<'a, O> {
             _ => self,
         }
     }
-    pub fn or_else<F>(self, f: F) -> eyre::Result<O>
+    pub fn unhandled<F>(self, f: F) -> eyre::Result<O>
     where
         F: FnOnce(&'a str, &'a str) -> eyre::Result<O>,
     {

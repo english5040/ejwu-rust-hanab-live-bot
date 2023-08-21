@@ -10,7 +10,7 @@ use serde_json::json;
 use tracing::instrument;
 use url::Url;
 
-use crate::command::*;
+use crate::command::{self, client, server, Command, TableID, UserID};
 
 #[derive(Debug)]
 struct State {
@@ -48,7 +48,6 @@ impl State {
     fn insert_user(&mut self, user: server::User) {
         self.username_to_id.insert(user.name.clone(), user.user_id);
         self.users.insert(user.user_id, user);
-        println!("{:?}", self.users);
     }
     fn remove_user(&mut self, user_id: UserID) {
         let user = self.users.remove(&user_id);
@@ -60,7 +59,7 @@ impl State {
         if let Some(join_table) = &self.join_table {
             if &table.name == join_table {
                 self.handle
-                    .send_command(client::TableJoin { table_id: table.id });
+                    .send_command(&client::TableJoin { table_id: table.id });
                 self.join_table = None;
             }
         }
@@ -74,7 +73,7 @@ impl State {
         for table in self.tables.values() {
             if table.name == table_name {
                 self.handle
-                    .send_command(client::TableJoin { table_id: table.id });
+                    .send_command(&client::TableJoin { table_id: table.id });
                 return;
             }
         }
@@ -86,7 +85,7 @@ impl State {
     }
     fn start(&mut self) {
         if let Some(current_table) = self.current_table {
-            self.handle.send_command(client::TableStart {
+            self.handle.send_command(&client::TableStart {
                 table_id: current_table,
             });
         }
@@ -116,58 +115,46 @@ impl ezsockets::ClientExt for State {
 
     #[instrument(skip_all, fields(name = self.username))]
     async fn on_text(&mut self, text: String) -> Result<(), ezsockets::Error> {
-        let (name, data) = text.split_once(' ').ok_or_else(|| {
-            eyre!("error parsing command: no space in command")
-        })?;
-        match name {
-            <server::Warning>::NAME => {
-                let server::Warning { warning } = serde_json::from_str(data)?;
-                tracing::warn!("received warning from server: {warning}");
-            }
-            <server::Error>::NAME => {
-                let server::Error { error } = serde_json::from_str(data)?;
-                return Err(eyre!("received error from server: {error}").into());
-            }
-            <server::Welcome>::NAME => {
-                let welcome: server::Welcome = serde_json::from_str(data)?;
-            }
-            <server::Name>::NAME => {
+        command::Parse::from_str(&text)
+            .handle_command(|server::Warning { warning }| {
+                tracing::warn!("received warning from server: {warning:?}");
+            })
+            .handle_command_result(|server::Error { error }| {
+                Err(eyre!("received error from server: {error}"))
+            })
+            .handle_command(|welcome: server::Welcome| {
+                tracing::info!("received welcome from server: {welcome:#?}");
+            })
+            .handle_command(|_: server::Name| {
                 // ignored
-            }
-            <server::User>::NAME => {
-                let user: server::User = serde_json::from_str(data)?;
+            })
+            .handle_command(|user: server::User| {
                 self.insert_user(user);
-            }
-            <server::UserList>::NAME => {
-                let server::UserList(user_list) = serde_json::from_str(data)?;
+            })
+            .handle_command(|server::UserList(user_list)| {
                 for user in user_list {
                     self.insert_user(user);
                 }
-            }
-            <server::UserLeft>::NAME => {
-                let server::UserLeft { user_id } = serde_json::from_str(data)?;
+            })
+            .handle_command(|server::UserLeft { user_id }| {
                 self.remove_user(user_id);
-            }
-            <server::Table>::NAME => {
-                let table: server::Table = serde_json::from_str(data)?;
+            })
+            .handle_command(|table: server::Table| {
                 self.insert_table(table);
-            }
-            <server::TableList>::NAME => {
-                let server::TableList(list) = serde_json::from_str(data)?;
+            })
+            .handle_command(|server::TableList(list)| {
                 for table in list {
                     self.insert_table(table);
                 }
-            }
-            <server::TableGone>::NAME => {
-                let server::TableGone { table_id } =
-                    serde_json::from_str(data)?;
+            })
+            .handle_command(|server::TableGone { table_id }| {
                 self.remove_table(table_id);
-            }
-            _ => {
-                tracing::info!("received unknown command: {name:?}");
-            }
-        }
-        Ok(())
+            })
+            .unhandled(|name, _data| {
+                tracing::info!("received unhandled command {name:?}");
+                Ok(())
+            })
+            .map_err(Into::into)
     }
 
     async fn on_binary(
@@ -195,10 +182,11 @@ mod bot {
     pub struct Bot(ezsockets::Client<State>);
 
     impl Bot {
+        #[allow(clippy::missing_const_for_fn)]
         pub(super) fn from_inner(inner: ezsockets::Client<State>) -> Self {
             Self(inner)
         }
-        pub(super) fn send_command<T>(&self, command: T)
+        pub(super) fn send_command<T>(&self, command: &T)
         where
             T: Command + Serialize,
         {
@@ -242,7 +230,7 @@ impl Bot {
     }
 
     // Create table. The server will automatically join this bot to the created table
-    pub fn create_table(&self, table: client::TableCreate) {
+    pub fn create_table(&self, table: &client::TableCreate) {
         self.send_command(table);
     }
 

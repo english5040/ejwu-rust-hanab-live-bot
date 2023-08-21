@@ -9,7 +9,10 @@ use std::collections::HashMap;
 use clap::Parser;
 use color_eyre::eyre;
 use command::client;
-use futures::{prelude::*, stream::FuturesOrdered};
+use futures::{
+    prelude::*,
+    stream::{FuturesOrdered, FuturesUnordered},
+};
 use serde::Deserialize;
 
 use crate::hanabi_client::Bot;
@@ -78,15 +81,14 @@ async fn main() -> eyre::Result<()> {
         .iter()
         .map(|&username| (username, &*config.bots[username]));
 
-    let (bots, futures) = run_bots(bot_usernames_passwords).await?;
+    let (bots, mut futures) = run_bots(bot_usernames_passwords).await?;
 
     // Process args
     if args.create {
-        let table = client::TableCreate {
+        bots[0].create_table(&client::TableCreate {
             name: args.table,
             ..client::TableCreate::default()
-        };
-        bots[0].create_table(table);
+        });
         for bot in &bots[1..] {
             todo!()
         }
@@ -100,19 +102,27 @@ async fn main() -> eyre::Result<()> {
         }
     }
 
-    let results = futures.collect::<Vec<_>>().await;
-    dbg!(results);
+    while let Some((i, result)) = futures.next().await {
+        match result {
+            Ok(()) => {
+                tracing::info!("bots[{i}] finished");
+            }
+            Err(e) => {
+                tracing::error!("bots[{i}] terminated with error: {e}");
+            }
+        }
+    }
     Ok(())
 }
 
 // Make and run bots
-// Returns a Vec<Bot>, and a FuturesOrdered containing the bots' JoinHandles
+// Returns a Vec<Bot>, and a FuturesUnordered containing the bots' JoinHandles
 #[allow(clippy::future_not_send)]
 async fn run_bots<'a, 'b, T>(
     bot_username_password: T,
 ) -> eyre::Result<(
     Vec<Bot>,
-    FuturesOrdered<impl Future<Output = eyre::Result<()>>>,
+    FuturesUnordered<impl Future<Output = (u8, eyre::Result<()>)>>,
 )>
 where
     T: Iterator<Item = (&'a str, &'b str)>,
@@ -122,6 +132,12 @@ where
         .collect::<FuturesOrdered<_>>()
         .try_collect::<Vec<_>>()
         .await?;
-    let (bots, futures): (Vec<_>, FuturesOrdered<_>) = bots.into_iter().unzip();
+    let (bots, futures): (Vec<_>, FuturesUnordered<_>) = bots
+        .into_iter()
+        .enumerate()
+        .map(|(i, (bot, future))| {
+            (bot, future.map(move |x| (i.try_into().unwrap(), x)))
+        })
+        .unzip();
     Ok((bots, futures))
 }

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::*;
+use super::{Command, TableID, UserID};
 
 // Server messages
 
@@ -31,7 +31,7 @@ impl Command for Error {
 pub struct Welcome {
     #[serde(rename = "userID")]
     pub user_id: UserID,
-    pub random_table_name: String,
+    // pub random_table_name: String,
 }
 impl Command for Welcome {
     const NAME: &'static str = "welcome";
@@ -105,7 +105,8 @@ pub struct User {
     pub name: String,
     // TODO make this an enum
     pub status: i32,
-    // TODO 0 is used as no TableID, so convert to Option<TableID>
+    // 0 is used as sentinel for no TableID
+    // TODO convert to Option<TableID> and use NonZeroU64
     #[serde(rename = "tableID")]
     pub table_id: TableID,
 }
