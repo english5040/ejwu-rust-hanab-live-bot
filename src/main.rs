@@ -25,10 +25,10 @@ struct Args {
     #[arg(
         short,
         default_value_t = 1,
-        value_parser = clap::value_parser!(u8).range(1..=6),
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..=6),
         group = "users"
     )]
-    n: u8,
+    n: usize,
     // Usernames of all bots to run
     #[arg(long, value_name = "USERNAME", group = "users")]
     user: Option<Vec<String>>,
@@ -66,19 +66,18 @@ async fn main() -> eyre::Result<()> {
     // Synchronous
     let f = std::fs::read_to_string("config.json")?;
     let config: Config = serde_json::from_str(&f)?;
-
     let args = Args::parse();
 
-    let bot_usernames_passwords = if let Some(users) = &args.user {
+    let bot_username_passwords = if let Some(users) = &args.user {
         users.as_slice()
     } else {
-        &config.default_bots[0..args.n.into()]
+        &config.default_bots[0..args.n]
     }
     .iter()
     .map(|s| &**s)
     .map(|username| (username, &*config.bots[username]));
 
-    let (bots, mut futures) = run_bots(bot_usernames_passwords).await?;
+    let (bots, mut futures) = run_bots(bot_username_passwords).await?;
 
     // Process args
     if args.create {
@@ -99,13 +98,13 @@ async fn main() -> eyre::Result<()> {
         }
     }
 
-    while let Some((i, result)) = futures.next().await {
+    while let Some((i, username, result)) = futures.next().await {
         match result {
             Ok(()) => {
-                tracing::info!("bots[{i}] finished");
+                tracing::info!("bots[{i}]{{username={username:?}}} finished");
             }
             Err(e) => {
-                tracing::error!("bots[{i}] terminated with error: {e}");
+                tracing::error!("bots[{i}]{{username={username:?}}} terminated with error: {e}");
             }
         }
     }
@@ -116,15 +115,15 @@ async fn main() -> eyre::Result<()> {
 // Returns a Vec<Bot>, and a FuturesUnordered containing the bots' JoinHandles
 #[allow(clippy::future_not_send)]
 async fn run_bots<'a, 'b, T>(
-    bot_username_password: T,
+    bot_username_passwords: T,
 ) -> eyre::Result<(
     Vec<Bot>,
-    FuturesUnordered<impl Future<Output = (u8, eyre::Result<()>)>>,
+    FuturesUnordered<impl Future<Output = (usize, String, eyre::Result<()>)>>,
 )>
 where
     T: Iterator<Item = (&'a str, &'b str)>,
 {
-    let bots = bot_username_password
+    let bots = bot_username_passwords
         .map(|(username, password)| Bot::new(username, password))
         .collect::<FuturesOrdered<_>>()
         .try_collect::<Vec<_>>()
@@ -133,7 +132,8 @@ where
         .into_iter()
         .enumerate()
         .map(|(i, (bot, future))| {
-            (bot, future.map(move |x| (i.try_into().unwrap(), x)))
+            let username = bot.username.clone();
+            (bot, future.map(move |x| (i, username, x)))
         })
         .unzip();
     Ok((bots, futures))

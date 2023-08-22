@@ -17,9 +17,6 @@ struct State {
     // --- Wrapped ezsockets::Client handle
     handle: Bot,
     // --- State for hanab.live lobby
-    // Username of bot, informational only
-    username: String,
-    username_to_id: HashMap<String, UserID>,
     users: HashMap<UserID, server::User>,
     tables: HashMap<TableID, server::Table>,
     // Current table
@@ -33,11 +30,9 @@ struct State {
 }
 
 impl State {
-    fn new(handle: ezsockets::Client<Self>, username: String) -> Self {
+    fn new(username: String, handle: ezsockets::Client<Self>) -> Self {
         Self {
-            handle: Bot::from_inner(handle),
-            username,
-            username_to_id: HashMap::new(),
+            handle: Bot::from_handle(username, handle),
             users: HashMap::new(),
             tables: HashMap::new(),
             current_table: None,
@@ -45,14 +40,16 @@ impl State {
             join_table: None,
         }
     }
+    fn username(&self) -> &str {
+        &self.handle.username
+    }
     fn insert_user(&mut self, user: server::User) {
-        self.username_to_id.insert(user.name.clone(), user.user_id);
         self.users.insert(user.user_id, user);
     }
     fn remove_user(&mut self, user_id: UserID) {
-        let user = self.users.remove(&user_id);
-        if let Some(user) = user {
-            self.username_to_id.remove(&user.name);
+        let removed = self.users.remove(&user_id);
+        if removed.is_none() {
+            tracing::error!("called remove_user, but {user_id:?} not found");
         }
     }
     fn insert_table(&mut self, table: server::Table) {
@@ -113,7 +110,7 @@ impl State {
 impl ezsockets::ClientExt for State {
     type Call = Call;
 
-    #[instrument(skip_all, fields(name = self.username))]
+    #[instrument(skip_all, fields(username = self.username()))]
     async fn on_text(&mut self, text: String) -> Result<(), ezsockets::Error> {
         command::Parse::from_str(&text)
             .handle_command(|server::Warning { warning }| {
@@ -164,7 +161,7 @@ impl ezsockets::ClientExt for State {
         Err(eyre!("received binary message from server").into())
     }
 
-    #[instrument(skip_all, fields(name = self.username))]
+    #[instrument(skip_all, fields(username = self.username()))]
     async fn on_call(
         &mut self,
         call: Self::Call,
@@ -179,24 +176,34 @@ mod bot {
 
     // Wraps the ezsockets::Client, simplifying the available functionality
     #[derive(Debug)]
-    pub struct Bot(ezsockets::Client<State>);
+    pub struct Bot {
+        // Informational
+        pub username: String,
+        inner: ezsockets::Client<State>,
+    }
 
     impl Bot {
         #[allow(clippy::missing_const_for_fn)]
-        pub(super) fn from_inner(inner: ezsockets::Client<State>) -> Self {
-            Self(inner)
+        pub(super) fn from_handle(
+            username: String,
+            handle: ezsockets::Client<State>,
+        ) -> Self {
+            Self {
+                username: username.to_owned(),
+                inner: handle,
+            }
         }
         pub(super) fn send_command<T>(&self, command: &T)
         where
             T: Command + Serialize,
         {
-            self.0.text(command.serialize_command());
+            self.inner.text(command.serialize_command());
         }
         pub(super) fn call(
             &self,
             message: <State as ezsockets::ClientExt>::Call,
         ) {
-            self.0.call(message);
+            self.inner.call(message);
         }
     }
 }
@@ -216,17 +223,17 @@ impl Bot {
 
         let config = ezsockets::ClientConfig::new("wss://hanab.live/ws")
             .header(http::header::COOKIE, cookie);
-
-        let username = username.to_owned();
         // TODO ezsockets is a really small hobby crate.
         // Maybe use a different websocket client library.
-        // Maybe pull directly from Github so new fixes are brought in immediately.
+        // Maybe pull directly from Github so new fixes are brought in
+        // immediately.
+        let username1 = username.to_owned();
         let (handle, future) =
-            ezsockets::connect(|handle| State::new(handle, username), config)
+            ezsockets::connect(|handle| State::new(username1, handle), config)
                 .await;
         // No need for spawn, ezsockets already spawns
         let future = future.map_err(|e| eyre!(e));
-        Ok((Self::from_inner(handle), future))
+        Ok((Self::from_handle(username.to_owned(), handle), future))
     }
 
     // Create table. The server will automatically join this bot to the created table
