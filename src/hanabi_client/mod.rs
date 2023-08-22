@@ -1,5 +1,8 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::{collections::HashMap, sync::Arc};
+use std::ops::ControlFlow;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use color_eyre::eyre::{self, eyre, WrapErr};
@@ -20,13 +23,14 @@ struct State {
     users: HashMap<UserID, server::User>,
     tables: HashMap<TableID, server::Table>,
     // Current table
-    // TODO if we are currently creating a table, this might be delayed
+    // TODO if we are currently creating a table, this might be set too eagerly:
+    // creating the table might fail.
     current_table: Option<TableID>,
     // --- Bot-specific state for lobby
     // Constantly try to go to this user's table.
-    following_user: Option<String>,
-    // Table we want to join. Only join the table once, though.
-    join_table: Option<String>,
+    follow_user: RefCell<Option<String>>,
+    // Table that bot wants to join. Only join the table once.
+    join_table: RefCell<Option<String>>,
 }
 
 impl State {
@@ -36,14 +40,15 @@ impl State {
             users: HashMap::new(),
             tables: HashMap::new(),
             current_table: None,
-            following_user: None,
-            join_table: None,
+            follow_user: RefCell::new(None),
+            join_table: RefCell::new(None),
         }
     }
     fn username(&self) -> &str {
         &self.handle.username
     }
     fn insert_user(&mut self, user: server::User) {
+        self.check_follow_user(&user);
         self.users.insert(user.user_id, user);
     }
     fn remove_user(&mut self, user_id: UserID) {
@@ -53,32 +58,49 @@ impl State {
         }
     }
     fn insert_table(&mut self, table: server::Table) {
-        if let Some(join_table) = &self.join_table {
-            if &table.name == join_table {
-                self.handle
-                    .send_command(&client::TableJoin { table_id: table.id });
-                self.join_table = None;
-            }
-        }
+        self.check_join_table(&table);
         self.tables.insert(table.id, table);
     }
     fn remove_table(&mut self, table_id: TableID) {
         self.tables.remove(&table_id);
     }
+    // TODO maybe there should be an expected current_table
+    fn set_current_table(&mut self, current_table: Option<TableID>) {
+        self.current_table = current_table;
+    }
 
     fn join_table(&mut self, table_name: String) {
-        for table in self.tables.values() {
-            if table.name == table_name {
-                self.handle
-                    .send_command(&client::TableJoin { table_id: table.id });
-                return;
-            }
+        *self.join_table.borrow_mut() = Some(table_name);
+        self.tables
+            .values()
+            .try_for_each(|table| self.check_join_table(table));
+    }
+    fn check_join_table(&self, table: &server::Table) -> ControlFlow<()> {
+        let mut join_table = self.join_table.borrow_mut();
+        if join_table.as_ref().is_some_and(|x| x == &table.name) {
+            self.handle
+                .send_command(&client::TableJoin { table_id: table.id });
+            *join_table = None;
+            return ControlFlow::Break(());
         }
-        self.join_table = Some(table_name);
+        ControlFlow::Continue(())
     }
     fn follow_user(&mut self, username: String) {
-        self.following_user = Some(username);
-        todo!();
+        *self.follow_user.borrow_mut() = Some(username);
+        self.users
+            .values()
+            .try_for_each(|user| self.check_follow_user(user));
+    }
+    fn check_follow_user(&self, user: &server::User) -> ControlFlow<()> {
+        let follow_user = self.follow_user.borrow_mut();
+        if follow_user.as_ref().is_some_and(|x| x == &user.name) {
+            if let Some(table_id) = user.table_id {
+                self.handle.send_command(&client::TableJoin { table_id });
+                // Don't stop following follow_user
+                return ControlFlow::Break(());
+            }
+        }
+        ControlFlow::Continue(())
     }
     fn start(&mut self) {
         if let Some(current_table) = self.current_table {
@@ -147,6 +169,12 @@ impl ezsockets::ClientExt for State {
             .handle_command(|server::TableGone { table_id }| {
                 self.remove_table(table_id);
             })
+            .handle_command(|server::Joined { table_id }| {
+                self.set_current_table(Some(table_id));
+            })
+            .handle_command(|server::Left { .. }| {
+                self.set_current_table(None);
+            })
             .unhandled(|name, _data| {
                 tracing::info!("received unhandled command {name:?}");
                 Ok(())
@@ -189,7 +217,7 @@ mod bot {
             handle: ezsockets::Client<State>,
         ) -> Self {
             Self {
-                username: username.to_owned(),
+                username,
                 inner: handle,
             }
         }
@@ -243,6 +271,10 @@ impl Bot {
 
     pub fn join_table(&self, table_name: String) {
         self.call(Call::JoinTable(table_name));
+    }
+
+    pub fn follow_user(&self, username: String) {
+        self.call(Call::FollowUser(username));
     }
 
     // Start the current table

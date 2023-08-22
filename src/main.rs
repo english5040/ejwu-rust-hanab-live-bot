@@ -9,10 +9,8 @@ use std::collections::HashMap;
 use clap::Parser;
 use color_eyre::eyre;
 use command::client;
-use futures::{
-    prelude::*,
-    stream::{FuturesOrdered, FuturesUnordered},
-};
+use futures::prelude::*;
+use futures::stream::{FuturesOrdered, FuturesUnordered};
 use serde::Deserialize;
 
 use crate::hanabi_client::Bot;
@@ -86,15 +84,15 @@ async fn main() -> eyre::Result<()> {
             ..client::TableCreate::default()
         });
         for bot in &bots[1..] {
-            todo!()
+            bot.follow_user(bots[0].username.clone());
         }
     } else if let Some(user) = args.follow_user {
         for bot in bots {
-            todo!()
+            bot.follow_user(user.clone());
         }
-    } else if let Some(name) = args.table {
+    } else if let Some(table) = args.table {
         for bot in bots {
-            todo!()
+            bot.join_table(table.clone());
         }
     }
 

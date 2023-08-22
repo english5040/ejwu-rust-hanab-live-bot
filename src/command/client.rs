@@ -12,7 +12,7 @@ use super::{Command, TableID};
 #[serde(rename_all = "camelCase")]
 pub struct TableCreate {
     pub name: Option<String>,
-    pub max_players: i32,
+    pub max_players: u8,
 }
 impl Default for TableCreate {
     fn default() -> Self {

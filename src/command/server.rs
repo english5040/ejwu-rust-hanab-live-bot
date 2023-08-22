@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use serde_with::serde_as;
 
 use super::{deserialize_option_table_id, Command, TableID, UserID};
 
@@ -145,11 +146,13 @@ impl Command for GameHistory {
 // Chat
 
 #[derive(Debug, Deserialize)]
+#[serde_as]
 #[serde(rename_all = "camelCase")]
 pub struct Chat {
-    pub recipient: String,
-    pub who: String,
     pub msg: String,
+    pub who: String,
+    #[serde_as(as = "NoneAsEmptyString")]
+    pub recipient: Option<String>,
 }
 impl Command for Chat {
     const NAME: &'static str = "chat";
@@ -159,6 +162,7 @@ impl Command for Chat {
 #[serde(rename_all = "camelCase")]
 pub struct ChatList {
     pub list: Vec<Chat>,
+    pub unread: usize,
 }
 impl Command for ChatList {
     const NAME: &'static str = "chatList";
@@ -175,14 +179,20 @@ impl Command for ChatTyping {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Joined;
+pub struct Joined {
+    #[serde(rename = "tableID")]
+    pub table_id: TableID,
+}
 impl Command for Joined {
     const NAME: &'static str = "joined";
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Left;
+pub struct Left {
+    #[serde(rename = "tableID")]
+    pub table_id: TableID,
+}
 impl Command for Left {
     const NAME: &'static str = "left";
 }
