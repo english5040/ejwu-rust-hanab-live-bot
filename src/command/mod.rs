@@ -1,7 +1,7 @@
 use std::num::NonZeroU64;
 
 use color_eyre::eyre::{self, eyre};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub mod client;
 pub mod server;
@@ -72,5 +72,14 @@ pub struct UserID(i32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct TableID(u64);
-// TODO use NonZeroU64
+pub struct TableID(NonZeroU64);
+
+pub fn deserialize_option_table_id<'de, D>(
+    deserializer: D,
+) -> Result<Option<TableID>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val = u64::deserialize(deserializer)?;
+    Ok(NonZeroU64::new(val).map(TableID))
+}

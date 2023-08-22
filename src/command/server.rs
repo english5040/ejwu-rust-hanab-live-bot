@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::{Command, TableID, UserID};
+use super::{deserialize_option_table_id, Command, TableID, UserID};
 
 // Server messages
 
@@ -106,9 +106,11 @@ pub struct User {
     // TODO make this an enum
     pub status: i32,
     // 0 is used as sentinel for no TableID
-    // TODO convert to Option<TableID> and use NonZeroU64
-    #[serde(rename = "tableID")]
-    pub table_id: TableID,
+    #[serde(
+        rename = "tableID",
+        deserialize_with = "deserialize_option_table_id"
+    )]
+    pub table_id: Option<TableID>,
 }
 impl Command for User {
     const NAME: &'static str = "user";
