@@ -69,17 +69,14 @@ async fn main() -> eyre::Result<()> {
 
     let args = Args::parse();
 
-    let bot_usernames: Vec<&str> = if let Some(users) = &args.user {
-        users.iter().map(|s| &**s).collect()
+    let bot_usernames_passwords = if let Some(users) = &args.user {
+        users.as_slice()
     } else {
-        config.default_bots[0..args.n.into()]
-            .iter()
-            .map(|s| &**s)
-            .collect()
-    };
-    let bot_usernames_passwords = bot_usernames
-        .iter()
-        .map(|&username| (username, &*config.bots[username]));
+        &config.default_bots[0..args.n.into()]
+    }
+    .iter()
+    .map(|s| &**s)
+    .map(|username| (username, &*config.bots[username]));
 
     let (bots, mut futures) = run_bots(bot_usernames_passwords).await?;
 
