@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::ControlFlow;
+use std::ops::ControlFlow::{self, Break, Continue};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -81,9 +81,9 @@ impl State {
             self.handle
                 .send_command(&client::TableJoin { table_id: table.id });
             *join_table = None;
-            return ControlFlow::Break(());
+            return Break(());
         }
-        ControlFlow::Continue(())
+        Continue(())
     }
     fn follow_user(&mut self, username: String) {
         *self.follow_user.borrow_mut() = Some(username);
@@ -97,10 +97,10 @@ impl State {
             if let Some(table_id) = user.table_id {
                 self.handle.send_command(&client::TableJoin { table_id });
                 // Don't stop following follow_user
-                return ControlFlow::Break(());
+                return Break(());
             }
         }
-        ControlFlow::Continue(())
+        Continue(())
     }
     fn start(&mut self) {
         if let Some(current_table) = self.current_table {
@@ -125,6 +125,10 @@ impl State {
             Call::FollowUser(s) => self.follow_user(s),
             Call::Start => self.start(),
         }
+    }
+    fn chat(&mut self, msg: &str, who: String) {
+        let mut args: Vec<&str> = msg.split_whitespace().collect();
+        // chat_command::Parse ...
     }
 }
 
@@ -169,6 +173,19 @@ impl ezsockets::ClientExt for State {
             .handle_command(|server::TableGone { table_id }| {
                 self.remove_table(table_id);
             })
+            .handle_command(
+                |server::Chat {
+                     msg,
+                     who,
+                     recipient,
+                 }| {
+                    if recipient.is_some_and(|x| x == self.username()) {
+                        if let Some(msg) = msg.strip_prefix('/') {
+                            self.chat(msg, who);
+                        }
+                    }
+                },
+            )
             .handle_command(|server::Joined { table_id }| {
                 self.set_current_table(Some(table_id));
             })

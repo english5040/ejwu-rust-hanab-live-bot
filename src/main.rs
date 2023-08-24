@@ -15,8 +15,6 @@ use serde::Deserialize;
 
 use crate::hanabi_client::Bot;
 
-// TODO remove futures dependency- just use tokio's
-
 #[derive(clap::Parser)]
 struct Args {
     // Number of bots to run. Will use default usernames.
