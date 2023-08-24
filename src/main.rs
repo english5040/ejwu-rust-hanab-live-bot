@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 #![allow(clippy::wildcard_imports)]
 
+mod chat_command;
 mod command;
 mod hanabi_client;
 
