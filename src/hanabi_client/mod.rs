@@ -5,6 +5,7 @@ use std::ops::ControlFlow::{self, Break, Continue};
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use clap::Parser;
 use color_eyre::eyre::{self, eyre, WrapErr};
 use futures::prelude::*;
 use reqwest::cookie::CookieStore;
@@ -13,6 +14,7 @@ use serde_json::json;
 use tracing::instrument;
 use url::Url;
 
+use crate::chat_command::ChatCommand;
 use crate::command::{self, client, server, Command, TableID, UserID};
 
 #[derive(Debug)]
@@ -127,8 +129,15 @@ impl State {
         }
     }
     fn chat(&mut self, msg: &str, who: String) {
-        let mut args: Vec<&str> = msg.split_whitespace().collect();
-        // chat_command::Parse ...
+        if !msg.starts_with('/') {
+            return;
+        }
+        let args = msg.split_whitespace();
+        let result = ChatCommand::try_parse_from(args);
+        match result {
+            Ok(_) => todo!(),
+            Err(_) => todo!(),
+        }
     }
 }
 
