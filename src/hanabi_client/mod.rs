@@ -71,6 +71,12 @@ impl State {
         self.current_table = current_table;
     }
 
+    fn create_table(&mut self, table: client::TableCreate) {
+        if self.current_table.is_some() {
+            return;
+        }
+        self.handle.send_command(&table);
+    }
     fn join_table(&mut self, table_name: String) {
         *self.join_table.borrow_mut() = Some(table_name);
         self.tables
@@ -115,6 +121,7 @@ impl State {
 
 #[derive(Debug)]
 enum Call {
+    CreateTable(client::TableCreate),
     JoinTable(String),
     FollowUser(String),
     Start,
@@ -123,6 +130,7 @@ enum Call {
 impl State {
     fn call(&mut self, call: Call) {
         match call {
+            Call::CreateTable(table) => self.create_table(table),
             Call::JoinTable(s) => self.join_table(s),
             Call::FollowUser(s) => self.follow_user(s),
             Call::Start => self.start(),
@@ -189,9 +197,7 @@ impl ezsockets::ClientExt for State {
                      recipient,
                  }| {
                     if recipient.is_some_and(|x| x == self.username()) {
-                        if let Some(msg) = msg.strip_prefix('/') {
-                            self.chat(msg, who);
-                        }
+                        self.chat(&msg, who);
                     }
                 },
             )
@@ -291,8 +297,8 @@ impl Bot {
     }
 
     // Create table. The server will automatically join this bot to the created table
-    pub fn create_table(&self, table: &client::TableCreate) {
-        self.send_command(table);
+    pub fn create_table(&self, table: client::TableCreate) {
+        self.call(Call::CreateTable(table));
     }
 
     pub fn join_table(&self, table_name: String) {

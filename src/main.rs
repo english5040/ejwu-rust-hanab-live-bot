@@ -100,7 +100,7 @@ async fn main() -> eyre::Result<()> {
     let process_args_for_bot = |i: usize, bot: Bot| {
         if args.create {
             match i {
-                0 => bot.create_table(&client::TableCreate {
+                0 => bot.create_table(client::TableCreate {
                     name: args.table.clone(),
                     ..client::TableCreate::default()
                 }),
